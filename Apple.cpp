@@ -1,9 +1,7 @@
 #include "Apple.h"
 #include "Utils.h"
 Apple::Apple(const Position &position) : m_Body({position.x,
-                                                 position.y,
-                                                 APPLE_WIDTH_HEIGHT,
-                                                 APPLE_WIDTH_HEIGHT}),
+                                                 position.y}),
                                          m_Value(gen_random_int(1, 10)),
                                          m_IsEaten(false)
 {
@@ -12,7 +10,7 @@ Apple::Apple(const Position &position) : m_Body({position.x,
 void Apple::Draw(SDL_Renderer *renderer)
 {
     SDL_SetRenderDrawColor(renderer, 175, 0, 0, 255);
-    SDL_RenderFillRect(renderer, &m_Body);
+    SDL_RenderDrawPoint(renderer, m_Body.x, m_Body.y);
 }
 int Apple::Get_X()
 {
@@ -34,4 +32,8 @@ void Apple::Set_Eaten()
 int Apple::Get_Value()
 {
     return m_Value;
+}
+SDL_Point Apple::Get_Body()
+{
+    return m_Body;
 }

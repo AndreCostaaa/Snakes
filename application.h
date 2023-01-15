@@ -20,15 +20,14 @@ private:
     int m_WindowHeight;
 
 private:
-    bool
-    Init();
-
+    bool Init();
     void RunLogic();
     void Render();
     void Cleanup();
     void HandleEvents();
     void OnEvent(SDL_Event *event);
     void GenerateSnakes(int nb_snakes);
+    void CheckForCollisions(size_t index, std::vector<size_t> &deadSnakesIndexes);
 };
 
 #endif

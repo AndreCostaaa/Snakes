@@ -1,5 +1,6 @@
-#include "application.h"
 #include <iostream>
+#include <algorithm>
+#include "Application.h"
 #include "Utils.h"
 #include "Position.h"
 Application::Application() : m_Running(false), m_SnakeList(std::vector<Snake>())
@@ -14,12 +15,14 @@ void Application::Execute()
         HandleEvents();
         RunLogic();
         Render();
+        // TODO define Delay Time
         SDL_Delay(10);
     }
     Cleanup();
 }
 bool Application::Init()
 {
+    // TODO gerer que la valeur entree par l'utilisateur est bonne
     int nb_snakes;
     std::cout << "ce programme ..." << std::endl;
     std::cout << "largeur [50..1200] : ";
@@ -71,14 +74,88 @@ void Application::OnEvent(SDL_Event *event)
 }
 void Application::RunLogic()
 {
-    for (auto &snake : m_SnakeList)
+    std::vector<size_t> deadSnakesIndexes;
+
+    for (size_t i = 0; i < m_SnakeList.size(); i++)
     {
-        snake.Step();
+        m_SnakeList[i].Step();
+        CheckForCollisions(i, deadSnakesIndexes);
+    }
+
+    std::sort(deadSnakesIndexes.begin(),
+              deadSnakesIndexes.end(),
+              std::greater<size_t>());
+
+    for (auto index : deadSnakesIndexes)
+    {
+        m_SnakeList.erase(m_SnakeList.begin() + (int)index);
+    }
+}
+void Application::CheckForCollisions(size_t index, std::vector<size_t> &deadSnakesIndexes)
+{
+    Snake &snake = m_SnakeList[index];
+    for (size_t i = 0; i < m_SnakeList.size(); i++)
+    {
+        Snake &other_snake = m_SnakeList[i];
+        size_t snake_size = snake.Get_CurrentSize(),
+               other_snake_size = other_snake.Get_CurrentSize();
+
+        if (other_snake.Get_Id() == snake.Get_Id() || other_snake_size == 0)
+        {
+            continue;
+        }
+
+        if (snake_size == 0)
+        {
+            break;
+        }
+
+        size_t collision_spot;
+
+        if (!Collision(snake, other_snake, &collision_spot))
+        {
+            continue;
+        }
+
+        size_t new_snake_size, new_other_snake_size;
+        if (collision_spot == HEAD_INDEX)
+        {
+            size_t id_killer, id_killed;
+            if (snake_size > other_snake_size)
+            {
+                // TODO define pour le 60%
+                new_snake_size = snake_size + other_snake_size * .6;
+                new_other_snake_size = 0;
+                deadSnakesIndexes.push_back(i);
+                id_killer = snake.Get_Id();
+                id_killed = other_snake.Get_Id();
+            }
+            else
+            {
+                // TODO define pour le 60%
+                new_snake_size = 0;
+                new_other_snake_size = other_snake_size + snake_size * .6;
+                deadSnakesIndexes.push_back(index);
+                id_killer = other_snake.Get_Id();
+                id_killed = snake.Get_Id();
+            }
+            std::cout << id_killer << " killed "
+                      << id_killed << std::endl;
+        }
+        else
+        {
+            // TODO define pour le 40%
+            new_other_snake_size = collision_spot;
+            new_snake_size = snake_size + (other_snake_size - collision_spot) * .4;
+        }
+        other_snake.Set_Length(new_other_snake_size);
+        snake.Set_Length(new_snake_size);
     }
 }
 void Application::Render()
 {
     // Set background color
+    // TODO define pour la couleur
     SDL_SetRenderDrawColor(m_Renderer, 0x7F, 0x7F, 0x7F, 0xFF);
     SDL_RenderClear(m_Renderer);
     for (auto &snake : m_SnakeList)
@@ -102,21 +179,16 @@ void Application::HandleEvents()
 }
 void Application::GenerateSnakes(int nb_snakes)
 {
-
-    // make sure we don't spawn a snake in the border of the board
-    int min_val = SNAKE_DEFAULT_LENGTH * 4;
-    int max_x = m_WindowWidth - min_val;
-    int max_y = m_WindowHeight - min_val;
-
     for (int i = 0; i < nb_snakes; i++)
     {
 
-        int x = gen_random_int(min_val, max_x);
-        int y = gen_random_int(min_val, max_y);
-        int apple_x = gen_random_int(0, m_WindowWidth);
-        int apple_y = gen_random_int(0, m_WindowHeight);
+        int x = gen_random_int(0, m_WindowWidth - 1);
+        int y = gen_random_int(0, m_WindowHeight - 1);
+        int apple_x = gen_random_int(0, m_WindowWidth - 1);
+        int apple_y = gen_random_int(0, m_WindowHeight - 1);
 
-        m_SnakeList.push_back(Snake(Position(x, y),
+        m_SnakeList.push_back(Snake(i,
+                                    Position(x, y),
                                     Position(apple_x, apple_y),
                                     m_WindowWidth,
                                     m_WindowHeight));

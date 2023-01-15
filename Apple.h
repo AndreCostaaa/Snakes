@@ -2,7 +2,6 @@
 #include "SDL2/SDL.h"
 #ifndef APPLE_H
 #define APPLE_H
-#define APPLE_WIDTH_HEIGHT 2
 
 class Apple
 {
@@ -14,9 +13,10 @@ public:
     bool is_eaten();
     void Set_Eaten();
     int Get_Value();
+    SDL_Point Get_Body();
 
 private:
-    SDL_Rect m_Body;
+    SDL_Point m_Body;
     bool m_IsEaten;
     int m_Value;
 };

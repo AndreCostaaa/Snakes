@@ -1,72 +1,72 @@
 #include "Snake.h"
 #include "Utils.h"
+#include "Physics.h"
 #include <iostream>
-Snake::Snake(const Position &snake_start_pos,
+
+#define NB_POSSIBLE_DIRECTIONS 4
+Snake::Snake(int id,
+             const Position &snake_start_pos,
              const Position &apple_start_pos,
              int max_x,
-             int max_y) : m_Apple({apple_start_pos}),
+             int max_y) : m_Id(id),
+                          m_Apple({apple_start_pos}),
                           m_Length(SNAKE_DEFAULT_LENGTH),
-                          m_Body(std::vector<SDL_Rect>()),
+                          m_Body(std::vector<SDL_Point>()),
                           m_MaxX(max_x),
                           m_MaxY(max_y)
 
 {
-    for (int i = 0; i < m_Length; i++)
-    {
-        SDL_Rect rect;
-        rect.x = snake_start_pos.x - i * SNAKE_BODY_WIDTH;
-        rect.y = snake_start_pos.y;
-        rect.w = SNAKE_BODY_WIDTH;
-        rect.h = SNAKE_BODY_WIDTH;
-        m_Body.push_back(rect);
-    }
-    std::cout << m_Length << " " << m_Body.size() << " " << (m_Body.size() == m_Length) << std::endl;
+    m_Body.push_back({snake_start_pos.x, snake_start_pos.y});
 }
 
 void Snake::Draw(SDL_Renderer *renderer)
 {
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-    for (size_t i = 0; i < m_Body.size(); i++)
-    {
-        SDL_RenderFillRect(renderer, &m_Body[i]);
-    }
+    // TODO define couleur
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0xFF);
+    SDL_RenderDrawPoints(renderer, &m_Body[HEAD_INDEX], m_Body.size());
     m_Apple.Draw(renderer);
 }
 void Snake::Step()
 {
-    DirectionEnum main_dir;
-    DirectionEnum sec_dir;
-    int head_x = m_Body[0].x;
-    int head_y = m_Body[0].y;
+    if (m_Body.empty())
+    {
+        return;
+    }
+    DirectionEnum direction_priority_buf[NB_POSSIBLE_DIRECTIONS];
+
+    int head_x = m_Body[HEAD_INDEX].x;
+    int head_y = m_Body[HEAD_INDEX].y;
     int apple_x = m_Apple.Get_X();
     int apple_y = m_Apple.Get_Y();
-    CalculateDirection(head_x, head_y, apple_x, apple_y, &main_dir, &sec_dir);
 
-    if (main_dir == None && sec_dir == None) // we got an apple
+    CalculateDirectionPriority(head_x, head_y, apple_x, apple_y, direction_priority_buf);
+
+    if (direction_priority_buf[0] == None ||
+        Collided(m_Body[HEAD_INDEX], m_Apple.Get_Body()))
     {
         m_Length += m_Apple.Get_Value();
-        m_Apple = Apple({gen_random_int(0, m_MaxX),
-                         gen_random_int(0, m_MaxY)});
-        std::cout << "New apple" << std::endl;
+        m_Apple = Apple({gen_random_int(0, m_MaxX - 1), gen_random_int(0, m_MaxY - 1)});
         return;
     }
-    SDL_Rect new_head;
-    if (CheckDirection(main_dir))
+
+    bool is_new_head_valid = false;
+    SDL_Point new_head;
+    for (int i = 0; i < NB_POSSIBLE_DIRECTIONS; i++)
     {
-        new_head = GetNewHead(main_dir);
+        if (CheckDirection(direction_priority_buf[i]))
+        {
+            is_new_head_valid = true;
+            new_head = GetNewHead(direction_priority_buf[i]);
+            break;
+        }
     }
-    else if (CheckDirection(sec_dir))
+
+    if (!is_new_head_valid)
     {
-        new_head = GetNewHead(sec_dir);
-    }
-    else
-    {
-        return;
-        // std::cout << "No new position to go" << std::endl;
+        // TODO gerer quand elle n'a plus de direction valable
     }
     if ((size_t)m_Length == m_Body.size())
     {
-        std::cout << "pop" << std::endl;
         m_Body.pop_back();
     }
     m_Body.insert(m_Body.begin(), new_head);
@@ -82,7 +82,7 @@ bool Snake::CheckDirection(DirectionEnum direction)
     {
         return false;
     }
-    SDL_Rect new_head = GetNewHead(direction);
+    SDL_Point new_head = GetNewHead(direction);
     if (new_head.x < 0 || new_head.x >= m_MaxX)
     {
         return false;
@@ -101,39 +101,67 @@ bool Snake::CheckDirection(DirectionEnum direction)
     return true;
 }
 
-SDL_Rect Snake::GetNewHead(DirectionEnum direction)
+size_t Snake::Get_CurrentSize()
 {
-    SDL_Rect new_head;
+    return m_Body.size();
+}
+SDL_Point Snake::GetNewHead(DirectionEnum direction)
+{
+    SDL_Point new_head;
     switch (direction)
     {
     case East:
         new_head = {m_Body[HEAD_INDEX].x - SNAKE_BODY_WIDTH,
-                    m_Body[HEAD_INDEX].y,
-                    SNAKE_BODY_WIDTH,
-                    SNAKE_BODY_WIDTH};
+                    m_Body[HEAD_INDEX].y};
         break;
     case West:
         new_head = {m_Body[HEAD_INDEX].x + SNAKE_BODY_WIDTH,
-                    m_Body[HEAD_INDEX].y,
-                    SNAKE_BODY_WIDTH,
-                    SNAKE_BODY_WIDTH};
+                    m_Body[HEAD_INDEX].y};
 
         break;
     case North:
         new_head = {m_Body[HEAD_INDEX].x,
-                    m_Body[HEAD_INDEX].y - SNAKE_BODY_WIDTH,
-                    SNAKE_BODY_WIDTH,
-                    SNAKE_BODY_WIDTH};
+                    m_Body[HEAD_INDEX].y - SNAKE_BODY_WIDTH};
         break;
     case South:
         new_head = {m_Body[HEAD_INDEX].x,
-                    m_Body[HEAD_INDEX].y + SNAKE_BODY_WIDTH,
-                    SNAKE_BODY_WIDTH,
-                    SNAKE_BODY_WIDTH};
+                    m_Body[HEAD_INDEX].y + SNAKE_BODY_WIDTH};
 
         break;
-    default:
+    case None:
+        // should never happen
         break;
     }
     return new_head;
+}
+
+bool Collision(const Snake &snake, const Snake &other_snake, size_t *collision_spot)
+{
+    if (snake.m_Body.empty() || other_snake.m_Body.empty())
+    {
+        return false;
+    }
+    for (size_t i = 0; i < other_snake.m_Body.size(); i++)
+    {
+        if (Collided(snake.m_Body[HEAD_INDEX], other_snake.m_Body[i]))
+        {
+            if (collision_spot)
+                *collision_spot = i;
+            return true;
+        }
+    }
+    return false;
+}
+void Snake::Set_Length(size_t size)
+{
+    m_Length = size;
+    if (size > m_Length)
+    {
+        return;
+    }
+    m_Body.resize(size);
+}
+size_t Snake::Get_Id()
+{
+    return m_Id;
 }
